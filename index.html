@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Princess Day Island 3D</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #dff9fb; font-family: 'Inter', sans-serif; user-select: none; -webkit-user-select: none; }
+        canvas { display: block; width: 100vw; height: 100vh; position: fixed; top: 0; left: 0; z-index: 0; }
+        .ui-layer { position: fixed; inset: 0; z-index: 10; pointer-events: none; }
+        .interactive { pointer-events: auto; }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <div class="ui-layer flex flex-col justify-between p-4">
+        <!-- Top HUD -->
+        <div class="flex justify-between items-start gap-2">
+            <div class="bg-white/90 backdrop-blur-md p-3 rounded-2xl shadow-lg border border-pink-100 interactive max-w-xs">
+                <div class="flex items-center gap-2">
+                    <span class="text-2xl">👑</span>
+                    <h1 class="font-bold text-pink-600 text-lg leading-tight">Princess Day Island 3D</h1>
+                </div>
+                <p class="text-xs text-pink-500 mt-1">For Princess Naysa & Prince Aadil ✨</p>
+                <div class="flex justify-between items-center mt-2 pt-2 border-t border-pink-100 text-xs">
+                    <span class="text-gray-600 font-medium">Royal Crowns:</span>
+                    <span id="treasure-counter" class="font-bold text-pink-600 bg-pink-50 px-2 py-0.5 rounded-full">0 / 6</span>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <button onclick="toggleCharacter()" class="bg-white/90 backdrop-blur-md px-4 py-2 rounded-2xl shadow-lg border border-pink-100 interactive flex items-center gap-2 text-sm font-semibold text-gray-700 active:scale-95 transition">
+                    👤 <span id="char-name">Naysa</span>
+                </button>
+                <button onclick="openMiniGame()" class="bg-gradient-to-r from-pink-500 to-rose-500 text-white px-4 py-2 rounded-2xl shadow-lg interactive flex items-center gap-1 text-sm font-semibold active:scale-95 transition">
+                    ⭐ Mini-Game
+                </button>
+            </div>
+        </div>
+
+        <!-- Bottom Controls -->
+        <div class="flex justify-between items-end pb-4">
+            <!-- Joystick -->
+            <div id="joystick-base" class="interactive w-28 h-28 bg-black/20 rounded-full relative flex items-center justify-center backdrop-blur-sm border border-white/30">
+                <div id="joystick-stick" class="w-12 h-12 bg-pink-500 rounded-full shadow-lg absolute transition-transform duration-75"></div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center gap-3">
+                <button onclick="toggleGate()" class="interactive bg-gradient-to-r from-pink-600 to-rose-600 text-white px-4 py-3 rounded-2xl shadow-lg font-bold text-sm active:scale-95 transition flex items-center gap-1">
+                    🏰 Gate
+                </button>
+                <button onclick="toggleCrouch()" class="interactive bg-white/90 backdrop-blur-md text-gray-800 px-4 py-3 rounded-2xl shadow-lg font-bold text-sm active:scale-95 transition">
+                    🧘 Crouch
+                </button>
+                <button onclick="triggerJump()" class="interactive w-20 h-20 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-full shadow-lg font-bold text-sm active:scale-95 transition flex items-center justify-center border-2 border-white/40">
+                    JUMP
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quote Modal -->
+    <div id="quote-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl border-4 border-pink-200">
+            <div class="text-4xl mb-2">💖</div>
+            <h3 class="text-xl font-bold text-pink-600 mb-2">Royal Treasure Found!</h3>
+            <p id="quote-text" class="text-gray-600 text-sm mb-4 leading-relaxed"></p>
+            <button onclick="closeQuoteModal()" class="bg-gradient-to-r from-pink-500 to-rose-500 text-white font-bold px-6 py-2.5 rounded-full shadow-md active:scale-95 transition">
+                Continue Adventure ✨
+            </button>
+        </div>
+    </div>
+
+    <!-- Mini-Game Modal -->
+    <div id="minigame-modal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl border-4 border-pink-300 relative">
+            <h3 class="text-lg font-bold text-pink-600 mb-1">⭐ Star Catcher Mini-Game</h3>
+            <div class="flex justify-between text-xs text-gray-500 mb-2">
+                <span>Score: <strong id="mg-score" class="text-pink-600">0</strong></span>
+                <span>Time: <strong id="mg-time" class="text-rose-600">30</strong>s</span>
+            </div>
+            <div id="mg-arena" class="w-full h-64 bg-pink-50 rounded-2xl relative overflow-hidden border-2 border-pink-100 mb-4"></div>
+            <button onclick="closeMiniGame()" class="bg-gray-200 text-gray-700 font-bold px-6 py-2 rounded-full text-sm active:scale-95 transition">
+                Close
+            </button>
+        </div>
+    </div>
+
+    <!-- Castle Celebration Banner Overlay -->
+    <div id="castle-celebration-banner" class="fixed inset-x-0 top-20 flex flex-col items-center justify-center pointer-events-none z-30 opacity-0 transition-opacity duration-700">
+        <div class="bg-gradient-to-r from-pink-600/90 via-rose-600/90 to-amber-500/90 text-white font-black text-xl md:text-3xl px-8 py-3 rounded-full shadow-2xl border-2 border-yellow-200 backdrop-blur-md animate-pulse text-center">
+            👑 HAPPY PRINCESS DAY 👑
+        </div>
+    </div>
+
+    <script>
+        // Initialize Three.js Scene with robust error handling
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xffeaa7); // Warm golden sunset sky
+        scene.fog = new THREE.FogExp2(0xffd3b6, 0.003);
+
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 5, 8);
+
+        // Orbital Camera Controls via Dragging
+        let cameraAngle = 0;
+        let cameraElevation = 4.5;
+        let cameraDist = 8.5;
+        let isDragging = false;
+        let prevMousePos = { x: 0, y: 0 };
+
+        window.addEventListener('pointerdown', (e) => {
+            if (e.target.tagName === 'CANVAS') {
+                isDragging = true;
+                prevMousePos = { x: e.clientX, y: e.clientY };
+            }
+        });
+
+        window.addEventListener('pointermove', (e) => {
+            if (isDragging) {
+                const deltaX = e.clientX - prevMousePos.x;
+                const deltaY = e.clientY - prevMousePos.y;
+                cameraAngle -= deltaX * 0.008;
+                cameraElevation = Math.max(1.5, Math.min(12, cameraElevation + deltaY * 0.02));
+                prevMousePos = { x: e.clientX, y: e.clientY };
+            }
+        });
+
+        window.addEventListener('pointerup', () => { isDragging = false; });
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        container.appendChild(renderer.domElement);
+
+        // Lighting Setup
+        const ambientLight = new THREE.AmbientLight(0xfff0f5, 0.85);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xfffaed, 1.3);
+        dirLight.position.set(60, 90, 60);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        const warmPointLight = new THREE.PointLight(0xff7675, 1.5, 50);
+        warmPointLight.position.set(0, 10, -15);
+        scene.add(warmPointLight);
+
+        // Ground Meadow with Procedural Grass Texture
+        const canvasTex = document.createElement('canvas');
+        canvasTex.width = 1024;
+        canvasTex.height = 1024;
+        const ctxTex = canvasTex.getContext('2d');
+        ctxTex.fillStyle = '#2e8b57';
+        ctxTex.fillRect(0, 0, 1024, 1024);
+        for (let i = 0; i < 25000; i++) {
+            ctxTex.fillStyle = Math.random() > 0.5 ? '#38a169' : '#22543d';
+            ctxTex.fillRect(Math.random() * 1024, Math.random() * 1024, 2, 6 + Math.random() * 8);
+        }
+        for (let i = 0; i < 800; i++) {
+            ctxTex.fillStyle = Math.random() > 0.5 ? '#fff5f5' : '#fef08a';
+            ctxTex.beginPath();
+            ctxTex.arc(Math.random() * 1024, Math.random() * 1024, 2 + Math.random() * 2, 0, Math.PI * 2);
+            ctxTex.fill();
+        }
+        const groundTexture = new THREE.CanvasTexture(canvasTex);
+        groundTexture.wrapS = THREE.RepeatWrapping;
+        groundTexture.wrapT = THREE.RepeatWrapping;
+        groundTexture.repeat.set(30, 30);
+
+        const groundGeo = new THREE.PlaneGeometry(300, 300);
+        const groundMat = new THREE.MeshStandardMaterial({ map: groundTexture, roughness: 0.8 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Horizon Mountains
+        const mountainMat = new THREE.MeshStandardMaterial({ color: 0x55efc4, roughness: 0.9 });
+        for (let i = 0; i < 16; i++) {
+            const angle = (i / 16) * Math.PI * 2;
+            const dist = 120 + Math.random() * 20;
+            const mGeo = new THREE.ConeGeometry(25 + Math.random() * 15, 30 + Math.random() * 20, 6);
+            const mountain = new THREE.Mesh(mGeo, mountainMat);
+            mountain.position.set(Math.cos(angle) * dist, 10, Math.sin(angle) * dist);
+            scene.add(mountain);
+        }
+
+        // Floating Clouds
+        const cloudGroup = new THREE.Group();
+        const cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1.0, transparent: true, opacity: 0.8 });
+        for (let i = 0; i < 10; i++) {
+            const cMesh = new THREE.Mesh(new THREE.DodecahedronGeometry(8 + Math.random() * 6), cloudMat);
+            cMesh.position.set((Math.random() - 0.5) * 200, 50 + Math.random() * 20, (Math.random() - 0.5) * 200);
+            cloudGroup.add(cMesh);
+        }
+        scene.add(cloudGroup);
+
+        // Castle & Gate with Royal Banners
+        const castleGroup = new THREE.Group();
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0x708090, roughness: 0.7 });
+        const roofMat = new THREE.MeshStandardMaterial({ color: 0x8b0000, roughness: 0.5 });
+
+        const towerGeo = new THREE.CylinderGeometry(3.5, 4.0, 18, 24);
+        const leftTower = new THREE.Mesh(towerGeo, wallMat);
+        leftTower.position.set(-15, 9, -35);
+        leftTower.castShadow = true;
+        castleGroup.add(leftTower);
+
+        const roofGeo = new THREE.ConeGeometry(4.5, 7, 24);
+        const leftRoof = new THREE.Mesh(roofGeo, roofMat);
+        leftRoof.position.set(-15, 21.5, -35);
+        castleGroup.add(leftRoof);
+
+        const rightTower = new THREE.Mesh(towerGeo, wallMat);
+        rightTower.position.set(15, 9, -35);
+        rightTower.castShadow = true;
+        castleGroup.add(rightTower);
+
+        const rightRoof = new THREE.Mesh(roofGeo, roofMat);
+        rightRoof.position.set(15, 21.5, -35);
+        castleGroup.add(rightRoof);
+
+        const centerWallGeo = new THREE.BoxGeometry(26, 12, 6);
+        const centerWall = new THREE.Mesh(centerWallGeo, wallMat);
+        centerWall.position.set(0, 6, -35);
+        centerWall.castShadow = true;
+        castleGroup.add(centerWall);
+
+        const gateDoorGeo = new THREE.BoxGeometry(7, 9, 6.2);
+        const gateDoorMat = new THREE.MeshStandardMaterial({ color: 0x3b2f2f, roughness: 0.9 });
+        const gateDoor = new THREE.Mesh(gateDoorGeo, gateDoorMat);
+        gateDoor.position.set(0, 4.5, -35);
+        castleGroup.add(gateDoor);
+
+        // Royal Banners hanging from towers
+        const bannerMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.5 });
+        const leftBanner = new THREE.Mesh(new THREE.BoxGeometry(1.5, 6, 0.2), bannerMat);
+        leftBanner.position.set(-15, 14, -31.8);
+        castleGroup.add(leftBanner);
+        const rightBanner = leftBanner.clone();
+        rightBanner.position.x = 15;
+        castleGroup.add(rightBanner);
+
+        const crestMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.9 });
+        const leftCrest = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 12), crestMat);
+        leftCrest.position.set(-15, 15, -31.6);
+        castleGroup.add(leftCrest);
+        const rightCrest = leftCrest.clone();
+        rightCrest.position.x = 15;
+        castleGroup.add(rightCrest);
+
+        scene.add(castleGroup);
+
+        // Royal Fountain in Plaza
+        const fountainGroup = new THREE.Group();
+        const basinMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.4 });
+        const basin = new THREE.Mesh(new THREE.CylinderGeometry(5, 5.5, 1.2, 24), basinMat);
+        basin.position.set(0, 0.6, -15);
+        fountainGroup.add(basin);
+
+        const water = new THREE.Mesh(new THREE.CylinderGeometry(4.5, 4.5, 0.2, 24), new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.1, transparent: true, opacity: 0.85 }));
+        water.position.set(0, 1.1, -15);
+        fountainGroup.add(water);
+
+        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 3.5, 16), basinMat);
+        pillar.position.set(0, 2.5, -15);
+        fountainGroup.add(pillar);
+
+        const basinTop = new THREE.Mesh(new THREE.CylinderGeometry(2, 1.8, 0.6, 16), basinMat);
+        basinTop.position.set(0, 4, -15);
+        fountainGroup.add(basinTop);
+        scene.add(fountainGroup);
+
+        // Flower Gardens
+        const flowerGroup = new THREE.Group();
+        const flowerColors = [0xf43f5e, 0xfbbf24, 0xa855f7, 0xffffff];
+        for(let i=0; i<40; i++) {
+            const col = flowerColors[Math.floor(Math.random() * flowerColors.length)];
+            const fMesh = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 8), new THREE.MeshStandardMaterial({ color: col, roughness: 0.6 }));
+            const angle = Math.random() * Math.PI * 2;
+            const r = 8 + Math.random() * 18;
+            fMesh.position.set(Math.cos(angle)*r, 0.35, -20 + Math.sin(angle)*r);
+            flowerGroup.add(fMesh);
+        }
+        scene.add(flowerGroup);
+
+        // Character Models Creation
+        function createCharacterModel(isNaysa) {
+            const group = new THREE.Group();
+            if (isNaysa) {
+                const skirt1 = new THREE.Mesh(new THREE.ConeGeometry(1.1, 1.0, 24), new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.5 }));
+                skirt1.position.y = 0.5;
+                group.add(skirt1);
+
+                const skirt2 = new THREE.Mesh(new THREE.ConeGeometry(0.95, 0.8, 24), new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.5 }));
+                skirt2.position.y = 1.0;
+                group.add(skirt2);
+
+                const skirt3 = new THREE.Mesh(new THREE.ConeGeometry(0.8, 0.6, 24), new THREE.MeshStandardMaterial({ color: 0xf87171, roughness: 0.5 }));
+                skirt3.position.y = 1.4;
+                group.add(skirt3);
+                
+                for(let t = 0; t < 3; t++) {
+                    const hemTrim = new THREE.Mesh(new THREE.TorusGeometry(1.0 - t*0.15, 0.04, 16, 24), new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.95, roughness: 0.2 }));
+                    hemTrim.rotation.x = Math.PI / 2;
+                    hemTrim.position.y = 0.1 + t*0.5;
+                    group.add(hemTrim);
+                }
+
+                const laceTier = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.95, 0.2, 24), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }));
+                laceTier.position.y = 0.3;
+                group.add(laceTier);
+
+                const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.4, 0.7, 16), new THREE.MeshStandardMaterial({ color: 0xff4d6d, roughness: 0.4 }));
+                torso.position.y = 1.75;
+                group.add(torso);
+
+                const gemMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, metalness: 0.9, emissive: 0x0284c7, emissiveIntensity: 0.6 });
+                for(let g = 0; g < 3; g++) {
+                    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.06), gemMat);
+                    gem.position.set(0, 1.6 + g*0.15, 0.38);
+                    group.add(gem);
+                }
+
+                const sash = new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.06, 16, 24), new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.85 }));
+                sash.rotation.z = Math.PI / 6;
+                sash.position.y = 1.65;
+                group.add(sash);
+
+                const ribbonMat = new THREE.MeshStandardMaterial({ color: 0xf43f5e, roughness: 0.4 });
+                const ribbonLeft = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.6, 0.02), ribbonMat);
+                ribbonLeft.position.set(-0.3, 2.5, -0.4);
+                group.add(ribbonLeft);
+                const ribbonRight = ribbonLeft.clone();
+                ribbonRight.position.x = 0.3;
+                group.add(ribbonRight);
+
+                const leftSleeve = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 }));
+                leftSleeve.position.set(-0.42, 1.9, 0);
+                group.add(leftSleeve);
+                const rightSleeve = leftSleeve.clone();
+                rightSleeve.position.x = 0.42;
+                group.add(rightSleeve);
+
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.45, 24, 24), new THREE.MeshStandardMaterial({ color: 0xffdbac }));
+                head.position.y = 2.45;
+                group.add(head);
+
+                const hair = new THREE.Mesh(new THREE.SphereGeometry(0.48, 24, 24), new THREE.MeshStandardMaterial({ color: 0x5c3a21 }));
+                hair.position.set(0, 2.5, -0.05);
+                group.add(hair);
+
+                const tiara = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.32, 12), new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.95, emissive: 0xca8a04, emissiveIntensity: 0.5 }));
+                tiara.position.set(0, 2.85, 0);
+                group.add(tiara);
+                
+                const tiaraJewel = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 12), new THREE.MeshStandardMaterial({ color: 0xf43f5e, metalness: 0.8, emissive: 0xe11d48, emissiveIntensity: 0.7 }));
+                tiaraJewel.position.set(0, 2.9, 0.1);
+                group.add(tiaraJewel);
+            } else {
+                const tunic = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.5, 1.4, 24), new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.6 }));
+                tunic.position.y = 0.9;
+                group.add(tunic);
+
+                const braidMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.9, roughness: 0.2 });
+                const braid1 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.05, 0.05), braidMat);
+                braid1.rotation.z = Math.PI / 4;
+                braid1.position.set(0, 1.2, 0.44);
+                group.add(braid1);
+                const braid2 = braid1.clone();
+                braid2.rotation.z = -Math.PI / 4;
+                group.add(braid2);
+
+                const epauletGeo = new THREE.BoxGeometry(0.35, 0.1, 0.35);
+                const leftEpaulet = new THREE.Mesh(epauletGeo, braidMat);
+                leftEpaulet.position.set(-0.45, 1.6, 0);
+                group.add(leftEpaulet);
+                const rightEpaulet = leftEpaulet.clone();
+                rightEpaulet.position.x = 0.45;
+                group.add(rightEpaulet);
+
+                for(let f = 0; f < 3; f++) {
+                    const tassel = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.25, 8), braidMat);
+                    tassel.position.set(-0.52 + f*0.04, 1.45, 0);
+                    group.add(tassel);
+                }
+
+                const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.47, 0.47, 0.15, 24), new THREE.MeshStandardMaterial({ color: 0x3b2f2f }));
+                belt.position.y = 1.0;
+                group.add(belt);
+                const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.08), braidMat);
+                buckle.position.set(0, 1.0, 0.44);
+                group.add(buckle);
+
+                const cape = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.3, 0.15), new THREE.MeshStandardMaterial({ color: 0x991b1b, roughness: 0.5 }));
+                cape.position.set(0, 1.1, -0.3);
+                group.add(cape);
+
+                const furCollar = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.12, 16, 24), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1.0 }));
+                furCollar.rotation.x = Math.PI / 2;
+                furCollar.position.set(0, 1.75, -0.1);
+                group.add(furCollar);
+
+                const capeClasp = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 12), new THREE.MeshStandardMaterial({ color: 0x10b981, metalness: 0.9, emissive: 0x059669, emissiveIntensity: 0.6 }));
+                capeClasp.position.set(0, 1.75, 0.32);
+                group.add(capeClasp);
+
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.45, 24, 24), new THREE.MeshStandardMaterial({ color: 0xffdbac }));
+                head.position.y = 2.35;
+                group.add(head);
+
+                const hair = new THREE.Mesh(new THREE.SphereGeometry(0.48, 24, 24), new THREE.MeshStandardMaterial({ color: 0x1f1f1f }));
+                hair.position.set(0, 2.4, -0.05);
+                group.add(hair);
+
+                const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.32, 16), braidMat);
+                crown.position.set(0, 2.75, 0);
+                group.add(crown);
+
+                const crownJewel = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 12), new THREE.MeshStandardMaterial({ color: 0x2563eb, metalness: 0.8, emissive: 0x1d4ed8, emissiveIntensity: 0.7 }));
+                crownJewel.position.set(0, 2.8, 0.38);
+                group.add(crownJewel);
+            }
+            return group;
+        }
+
+        const naysaModel = createCharacterModel(true);
+        const aadilModel = createCharacterModel(false);
+        scene.add(naysaModel);
+        scene.add(aadilModel);
+
+        // Magical Fairy Dust Particle System
+        const particleGeo = new THREE.BufferGeometry();
+        const particleCount = 200;
+        const posArray = new Float32Array(particleCount * 3);
+        for(let i = 0; i < particleCount * 3; i += 3) {
+            posArray[i] = (Math.random() - 0.5) * 140;
+            posArray[i+1] = Math.random() * 20;
+            posArray[i+2] = (Math.random() - 0.5) * 140;
+        }
+        particleGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        const particleMat = new THREE.PointsMaterial({ size: 0.35, color: 0xffffff, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending });
+        const sparkleParticles = new THREE.Points(particleGeo, particleMat);
+        scene.add(sparkleParticles);
+
+        // Collectibles & Quotes
+        const quotes = [
+            "You are the magic that makes every day feel like a royal celebration.",
+            "Side by side, every kingdom adventure is brighter with you.",
+            "Your smile is more radiant than all the jewels in the royal treasury.",
+            "Together, we build our own fairytale story every single day.",
+            "Your kindness and grace are truly fit for a queen.",
+            "Forever my favorite adventure partner in this wonderful world."
+        ];
+
+        const crownGeo = new THREE.OctahedronGeometry(0.5);
+        const crownMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.9, emissive: 0xca8a04, emissiveIntensity: 0.6 });
+        const crownsData = [
+            { pos: new THREE.Vector3(-30, 0.5, -15), collected: false, quote: quotes[0] },
+            { pos: new THREE.Vector3(30, 0.5, -15), collected: false, quote: quotes[1] },
+            { pos: new THREE.Vector3(-45, 0.5, 30), collected: false, quote: quotes[2] },
+            { pos: new THREE.Vector3(45, 0.5, 30), collected: false, quote: quotes[3] },
+            { pos: new THREE.Vector3(0, 0.5, 50), collected: false, quote: quotes[4] },
+            { pos: new THREE.Vector3(0, 0.5, -55), collected: false, quote: quotes[5] }
+        ];
+
+        const crownMeshes = crownsData.map(c => {
+            const mesh = new THREE.Mesh(crownGeo, crownMat);
+            mesh.position.copy(c.pos);
+            scene.add(mesh);
+            return mesh;
+        });
+
+        let crownsFound = 0;
+        const playerPos = new THREE.Vector3(0, 0, 15);
+        const companionPos = new THREE.Vector3(2.5, 0, 18);
+        let isNaysaControlling = true;
+        let gateIsOpen = false;
+        let isJumping = false;
+        let jumpHeight = 0;
+        let jumpVel = 0;
+        let crouched = false;
+        let isCutscenePlaying = false;
+        let cutsceneTimer = 0;
+
+        window.toggleCharacter = function() {
+            isNaysaControlling = !isNaysaControlling;
+            document.getElementById('char-name').innerText = isNaysaControlling ? 'Naysa' : 'Aadil';
+        };
+
+        window.toggleGate = function() {
+            gateIsOpen = !gateIsOpen;
+            gateDoor.visible = !gateIsOpen;
+            if (gateIsOpen) {
+                triggerPrincessDayCutscene();
+            }
+        };
+
+        function triggerPrincessDayCutscene() {
+            isCutscenePlaying = true;
+            cutsceneTimer = 400; // ~6.5 seconds for celebration
+            document.getElementById('castle-celebration-banner').classList.remove('opacity-0');
+            spawnFireworks();
+            setTimeout(() => spawnFireworks(), 1200);
+            setTimeout(() => spawnFireworks(), 2600);
+        }
+
+        const fireworkParticles = [];
+        function spawnFireworks() {
+            for (let f = 0; f < 6; f++) {
+                setTimeout(() => {
+                    const fwGeo = new THREE.BufferGeometry();
+                    const fwCount = 120;
+                    const fwPos = new Float32Array(fwCount * 3);
+                    const fwVel = [];
+                    const origin = new THREE.Vector3((Math.random() - 0.5) * 80, 35 + Math.random() * 15, -25 + (Math.random() - 0.5) * 40);
+                    
+                    for(let i=0; i<fwCount*3; i+=3) {
+                        fwPos[i] = origin.x;
+                        fwPos[i+1] = origin.y;
+                        fwPos[i+2] = origin.z;
+                        const theta = Math.random() * Math.PI * 2;
+                        const phi = Math.random() * Math.PI;
+                        const speed = 0.2 + Math.random() * 0.35;
+                        fwVel.push(new THREE.Vector3(
+                            Math.sin(phi) * Math.cos(theta) * speed,
+                            Math.cos(phi) * speed,
+                            Math.sin(phi) * Math.sin(theta) * speed
+                        ));
+                    }
+                    fwGeo.setAttribute('position', new THREE.BufferAttribute(fwPos, 3));
+                    const colors = [0xff4d6d, 0xfbbf24, 0x38bdf8, 0xa855f7, 0xffffff, 0xec4899];
+                    const fwMat = new THREE.PointsMaterial({ size: 0.5, color: colors[Math.floor(Math.random()*colors.length)], transparent: true, opacity: 1.0, blending: THREE.AdditiveBlending });
+                    const fwMesh = new THREE.Points(fwGeo, fwMat);
+                    scene.add(fwMesh);
+                    fireworkParticles.push({ mesh: fwMesh, vel: fwVel, life: 100 });
+                }, f * 300);
+            }
+        }
+
+        window.triggerJump = function() {
+            if (!isJumping) { isJumping = true; jumpVel = 0.35; }
+        };
+
+        window.toggleCrouch = function() { crouched = !crouched; };
+        window.closeQuoteModal = function() { document.getElementById('quote-modal').classList.add('hidden'); };
+
+        // Joystick Controls
+        let joystickVector = { x: 0, y: 0 };
+        const joystickBase = document.getElementById('joystick-base');
+        const joystickStick = document.getElementById('joystick-stick');
+        let joyTouchId = null, joyCenter = { x: 0, y: 0 };
+
+        joystickBase.addEventListener('touchstart', e => {
+            const t = e.targetTouches[0];
+            joyTouchId = t.identifier;
+            const r = joystickBase.getBoundingClientRect();
+            joyCenter = { x: r.left + r.width/2, y: r.top + r.height/2 };
+            updateJoy(t.clientX, t.clientY);
+        });
+
+        joystickBase.addEventListener('touchmove', e => {
+            for(let i=0; i<e.targetTouches.length; i++) {
+                if(e.targetTouches[i].identifier === joyTouchId) {
+                    updateJoy(e.targetTouches[i].clientX, e.targetTouches[i].clientY);
+                }
+            }
+        });
+
+        function resetJoy() {
+            joyTouchId = null;
+            joystickVector = { x: 0, y: 0 };
+            joystickStick.style.transform = `translate(0px, 0px)`;
+        }
+        joystickBase.addEventListener('touchend', resetJoy);
+        joystickBase.addEventListener('touchcancel', resetJoy);
+
+        function updateJoy(cx, cy) {
+            let dx = cx - joyCenter.x, dy = cy - joyCenter.y;
+            const d = Math.sqrt(dx*dx + dy*dy), max = 45;
+            if(d > max) { dx = (dx/d)*max; dy = (dy/d)*max; }
+            joystickStick.style.transform = `translate(${dx}px, ${dy}px)`;
+            joystickVector = { x: dx/max, y: dy/max };
+        }
+
+        // Mini-Game
+        window.openMiniGame = function() { document.getElementById('minigame-modal').classList.remove('hidden'); startStarCatcher(); };
+        window.closeMiniGame = function() { document.getElementById('minigame-modal').classList.add('hidden'); };
+
+        let mgScore = 0, mgTime = 30, mgInterval = null, starInterval = null;
+        function startStarCatcher() {
+            mgScore = 0; mgTime = 30;
+            document.getElementById('mg-score').innerText = mgScore;
+            document.getElementById('mg-time').innerText = mgTime;
+            const arena = document.getElementById('mg-arena');
+            arena.innerHTML = '';
+            if(mgInterval) clearInterval(mgInterval);
+            if(starInterval) clearInterval(starInterval);
+
+            mgInterval = setInterval(() => {
+                mgTime--;
+                document.getElementById('mg-time').innerText = mgTime;
+                if(mgTime <= 0) { clearInterval(mgInterval); clearInterval(starInterval); }
+            }, 1000);
+
+            starInterval = setInterval(() => {
+                const star = document.createElement('div');
+                star.innerHTML = '⭐';
+                star.className = 'absolute text-3xl cursor-pointer';
+                star.style.left = `${Math.random() * 85}%`;
+                star.style.top = `-40px`;
+                arena.appendChild(star);
+
+                let topPos = -40;
+                let fall = setInterval(() => {
+                    topPos += 3;
+                    star.style.top = `${topPos}px`;
+                    if(topPos > 240) { clearInterval(fall); star.remove(); }
+                }, 30);
+
+                star.onclick = () => { mgScore++; document.getElementById('mg-score').innerText = mgScore; clearInterval(fall); star.remove(); };
+            }, 600);
+        }
+
+        // Render Loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Animate fireworks
+            for(let i = fireworkParticles.length - 1; i >= 0; i--) {
+                const fw = fireworkParticles[i];
+                const posArr = fw.mesh.geometry.attributes.position.array;
+                for(let j=0; j<fw.vel.length; j++) {
+                    posArr[j*3] += fw.vel[j].x;
+                    posArr[j*3+1] += fw.vel[j].y;
+                    posArr[j*3+2] += fw.vel[j].z;
+                    fw.vel[j].y -= 0.005;
+                }
+                fw.mesh.geometry.attributes.position.needsUpdate = true;
+                fw.life--;
+                fw.mesh.material.opacity = Math.min(1.0, fw.life / 40);
+                if(fw.life <= 0) {
+                    scene.remove(fw.mesh);
+                    fireworkParticles.splice(i, 1);
+                }
+            }
+
+            // Animate fairy dust
+            const positions = sparkleParticles.geometry.attributes.position.array;
+            for(let i = 1; i < positions.length; i += 3) {
+                positions[i] -= 0.035;
+                if(positions[i] < 0) positions[i] = 22;
+            }
+            sparkleParticles.geometry.attributes.position.needsUpdate = true;
+
+            const speed = 0.25;
+            playerPos.x += joystickVector.x * speed;
+            playerPos.z += joystickVector.y * speed;
+            playerPos.x = Math.max(-140, Math.min(140, playerPos.x));
+            playerPos.z = Math.max(-140, Math.min(140, playerPos.z));
+
+            if (isJumping) {
+                jumpHeight += jumpVel;
+                jumpVel -= 0.03;
+                if (jumpHeight <= 0) { jumpHeight = 0; isJumping = false; }
+            }
+
+            const activeModel = isNaysaControlling ? naysaModel : aadilModel;
+            const otherModel = isNaysaControlling ? aadilModel : naysaModel;
+
+            activeModel.position.set(playerPos.x, jumpHeight, playerPos.z);
+            activeModel.scale.y = crouched ? 0.75 : 1.0;
+
+            const targetCompX = playerPos.x + (isNaysaControlling ? 2.5 : -2.5);
+            const targetCompZ = playerPos.z + 2.0;
+            companionPos.x += (targetCompX - companionPos.x) * 0.1;
+            companionPos.z += (targetCompZ - companionPos.z) * 0.1;
+            otherModel.position.set(companionPos.x, 0, companionPos.z);
+
+            let targetCamDist = cameraDist;
+            let targetCamElev = cameraElevation;
+            let lookAtTarget = new THREE.Vector3(playerPos.x, playerPos.y + 1.5, playerPos.z);
+
+            if (isCutscenePlaying) {
+                cutsceneTimer--;
+                targetCamDist = 95;
+                targetCamElev = 45;
+                lookAtTarget.set(0, 5, -15);
+                if (cutsceneTimer <= 0) { 
+                    isCutscenePlaying = false; 
+                    document.getElementById('castle-celebration-banner').classList.add('opacity-0');
+                }
+            }
+
+            const targetCamX = lookAtTarget.x + Math.sin(cameraAngle) * targetCamDist;
+            const targetCamZ = lookAtTarget.z + Math.cos(cameraAngle) * targetCamDist;
+            camera.position.x += (targetCamX - camera.position.x) * 0.08;
+            camera.position.y += ((lookAtTarget.y + targetCamElev) - camera.position.y) * 0.08;
+            camera.position.z += (targetCamZ - camera.position.z) * 0.08;
+            camera.lookAt(lookAtTarget);
+
+            crownMeshes.forEach((mesh, idx) => {
+                if (!crownsData[idx].collected) {
+                    mesh.rotation.y += 0.03;
+                    if (mesh.position.distanceTo(activeModel.position) < 2.0) {
+                        crownsData[idx].collected = true;
+                        mesh.visible = false;
+                        crownsFound++;
+                        document.getElementById('treasure-counter').innerText = `${crownsFound} / 6`;
+                        document.getElementById('quote-text').innerText = crownsData[idx].quote;
+                        document.getElementById('quote-modal').classList.remove('hidden');
+                    }
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
